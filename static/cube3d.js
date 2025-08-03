@@ -39,41 +39,52 @@ class Cube3DRenderer {
     setupScene() {
         // Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xf0f0f0);
+        this.scene.background = new THREE.Color(0xf5f5f5);
         
         // Camera
         this.camera = new THREE.PerspectiveCamera(
-            75,
+            60,
             this.container.clientWidth / this.container.clientHeight,
             0.1,
             1000
         );
-        this.camera.position.set(5, 5, 5);
+        this.camera.position.set(6, 6, 6);
         this.camera.lookAt(0, 0, 0);
         
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: false
+        });
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
         
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.7);
         this.scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(10, 10, 5);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        directionalLight.position.set(8, 8, 8);
         directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
         this.scene.add(directionalLight);
+        
+        // Additional light for better visibility
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+        directionalLight2.position.set(-8, -8, -8);
+        this.scene.add(directionalLight2);
     }
     
     createCube() {
         this.cube = new THREE.Group();
         
-        // Create 27 small cubes (3x3x3)
-        const cubeSize = 0.95;
-        const gap = 0.05;
+        // Create 26 small cubes (3x3x3 minus center)
+        const cubeSize = 0.9;
+        const gap = 0.1;
         
         for (let x = 0; x < 3; x++) {
             for (let y = 0; y < 3; y++) {
@@ -134,32 +145,44 @@ class Cube3DRenderer {
     
     getFaceColor(face, x, y, z) {
         const state = this.cubeState[face];
-        let row, col;
+        let row = 1, col = 1; // Default to center
         
         switch (face) {
             case 'U': // Top
-                row = 2 - z;
-                col = x;
+                if (y === 2) { // Only visible on top cubes
+                    row = 2 - z;
+                    col = x;
+                }
                 break;
             case 'D': // Bottom  
-                row = z;
-                col = x;
+                if (y === 0) { // Only visible on bottom cubes
+                    row = z;
+                    col = x;
+                }
                 break;
             case 'F': // Front
-                row = 2 - y;
-                col = x;
+                if (z === 2) { // Only visible on front cubes
+                    row = 2 - y;
+                    col = x;
+                }
                 break;
             case 'B': // Back
-                row = 2 - y;
-                col = 2 - x;
+                if (z === 0) { // Only visible on back cubes
+                    row = 2 - y;
+                    col = 2 - x;
+                }
                 break;
             case 'L': // Left
-                row = 2 - y;
-                col = 2 - z;
+                if (x === 0) { // Only visible on left cubes
+                    row = 2 - y;
+                    col = 2 - z;
+                }
                 break;
             case 'R': // Right
-                row = 2 - y;
-                col = z;
+                if (x === 2) { // Only visible on right cubes
+                    row = 2 - y;
+                    col = z;
+                }
                 break;
         }
         
@@ -168,14 +191,8 @@ class Cube3DRenderer {
     }
     
     setupControls() {
-        // Add OrbitControls for mouse interaction
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.enableZoom = true;
-        this.controls.enablePan = false;
-        this.controls.maxDistance = 15;
-        this.controls.minDistance = 3;
+        // Add simple orbit controls for mouse interaction
+        this.controls = new SimpleOrbitControls(this.camera, this.renderer.domElement);
     }
     
     updateCubeState(newState) {
@@ -230,7 +247,7 @@ class Cube3DRenderer {
         }
         
         // Gentle rotation when not interacting
-        if (!this.controls.enabled || (!this.controls._state === THREE.OrbitControls.STATE.NONE)) {
+        if (this.controls && this.controls.enabled && !this.controls.isMouseDown) {
             this.cube.rotation.y += 0.002;
         }
         
@@ -273,83 +290,92 @@ class Cube3DRenderer {
     }
 }
 
-// Three.js OrbitControls (simplified version)
-THREE.OrbitControls = function(camera, domElement) {
-    this.camera = camera;
-    this.domElement = domElement;
-    this.enabled = true;
-    this.enableDamping = false;
-    this.dampingFactor = 0.25;
-    this.enableZoom = true;
-    this.enablePan = true;
-    this.maxDistance = Infinity;
-    this.minDistance = 0;
-    
-    const scope = this;
-    let isMouseDown = false;
-    let mouseX = 0, mouseY = 0;
-    let lastMouseX = 0, lastMouseY = 0;
-    
-    this.update = function() {
-        // Simple damping
-        if (this.enableDamping) {
-            // Apply damping to rotation
-        }
-    };
-    
-    function onMouseDown(event) {
-        if (!scope.enabled) return;
-        isMouseDown = true;
-        lastMouseX = event.clientX;
-        lastMouseY = event.clientY;
+// Simple orbit controls implementation
+class SimpleOrbitControls {
+    constructor(camera, domElement) {
+        this.camera = camera;
+        this.domElement = domElement;
+        this.enabled = true;
+        this.enableDamping = true;
+        this.dampingFactor = 0.05;
+        this.enableZoom = true;
+        this.enablePan = false;
+        this.maxDistance = 15;
+        this.minDistance = 3;
+        
+        this.isMouseDown = false;
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
+        
+        this.spherical = new THREE.Spherical();
+        this.spherical.setFromVector3(this.camera.position);
+        
+        this.setupEventListeners();
     }
     
-    function onMouseMove(event) {
-        if (!scope.enabled || !isMouseDown) return;
+    setupEventListeners() {
+        this.domElement.addEventListener('mousedown', (e) => this.onMouseDown(e));
+        this.domElement.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        this.domElement.addEventListener('mouseup', () => this.onMouseUp());
+        this.domElement.addEventListener('wheel', (e) => this.onWheel(e));
         
-        mouseX = event.clientX;
-        mouseY = event.clientY;
-        
-        const deltaX = mouseX - lastMouseX;
-        const deltaY = mouseY - lastMouseY;
-        
-        // Rotate camera around the cube
-        const spherical = new THREE.Spherical();
-        spherical.setFromVector3(scope.camera.position);
-        
-        spherical.theta -= deltaX * 0.01;
-        spherical.phi += deltaY * 0.01;
-        
-        spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
-        
-        scope.camera.position.setFromSpherical(spherical);
-        scope.camera.lookAt(0, 0, 0);
-        
-        lastMouseX = mouseX;
-        lastMouseY = mouseY;
+        // Prevent context menu
+        this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
     }
     
-    function onMouseUp() {
-        isMouseDown = false;
+    onMouseDown(event) {
+        if (!this.enabled) return;
+        this.isMouseDown = true;
+        this.lastMouseX = event.clientX;
+        this.lastMouseY = event.clientY;
     }
     
-    function onWheel(event) {
-        if (!scope.enabled || !scope.enableZoom) return;
+    onMouseMove(event) {
+        if (!this.enabled || !this.isMouseDown) return;
+        
+        this.mouseX = event.clientX;
+        this.mouseY = event.clientY;
+        
+        const deltaX = this.mouseX - this.lastMouseX;
+        const deltaY = this.mouseY - this.lastMouseY;
+        
+        this.spherical.theta -= deltaX * 0.01;
+        this.spherical.phi += deltaY * 0.01;
+        
+        // Constrain phi
+        this.spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, this.spherical.phi));
+        
+        this.camera.position.setFromSpherical(this.spherical);
+        this.camera.lookAt(0, 0, 0);
+        
+        this.lastMouseX = this.mouseX;
+        this.lastMouseY = this.mouseY;
+    }
+    
+    onMouseUp() {
+        this.isMouseDown = false;
+    }
+    
+    onWheel(event) {
+        if (!this.enabled || !this.enableZoom) return;
+        
+        event.preventDefault();
         
         const scale = Math.pow(0.95, event.deltaY * 0.01);
-        scope.camera.position.multiplyScalar(scale);
+        this.spherical.radius *= scale;
         
-        const distance = scope.camera.position.length();
-        if (distance > scope.maxDistance) {
-            scope.camera.position.normalize().multiplyScalar(scope.maxDistance);
-        }
-        if (distance < scope.minDistance) {
-            scope.camera.position.normalize().multiplyScalar(scope.minDistance);
-        }
+        // Constrain distance
+        this.spherical.radius = Math.max(this.minDistance, 
+                                       Math.min(this.maxDistance, this.spherical.radius));
+        
+        this.camera.position.setFromSpherical(this.spherical);
+        this.camera.lookAt(0, 0, 0);
     }
     
-    this.domElement.addEventListener('mousedown', onMouseDown);
-    this.domElement.addEventListener('mousemove', onMouseMove);
-    this.domElement.addEventListener('mouseup', onMouseUp);
-    this.domElement.addEventListener('wheel', onWheel);
-};
+    update() {
+        // Simple update for damping
+        this.spherical.setFromVector3(this.camera.position);
+    }
+}
