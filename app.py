@@ -12,6 +12,7 @@ except ImportError:
 
 from cube import RubiksCube
 from solver import CubeSolver
+from solver_kociemba import KociembaSolver
 import json
 import time
 
@@ -29,6 +30,7 @@ if FLASK_AVAILABLE:
         try:
             data = request.get_json()
             scramble = data.get('scramble', '').strip()
+            algorithm = data.get('algorithm', 'kociemba').lower()
             
             if not scramble:
                 return jsonify({'error': 'No scramble provided'}), 400
@@ -37,35 +39,60 @@ if FLASK_AVAILABLE:
             cube = RubiksCube()
             cube.apply_moves(scramble)
             
-            # Get scrambled state
-            scrambled_state = cube.get_state_string()
+            # Choose solver based on algorithm
+            if algorithm == 'kociemba':
+                solver = KociembaSolver()
+                solution, stats = solver.solve(cube)
+                
+                if 'error' in stats:
+                    return jsonify({'error': stats['error']}), 400
+                
+                # Verify solution
+                is_solved = solver.verify_solution(cube, solution)
+                
+                response_data = {
+                    'solution': solution,
+                    'move_count': stats.get('moves', 0),
+                    'solve_time': stats.get('time', 0),
+                    'verified': is_solved,
+                    'scramble': scramble,
+                    'algorithm': stats.get('algorithm', 'Kociemba'),
+                    'description': stats.get('description', ''),
+                    'optimal': stats.get('optimal', True)
+                }
+            else:
+                # Fallback to layer-by-layer solver
+                solver = CubeSolver()
+                start_time = time.time()
+                solution = solver.solve(cube)
+                solve_time = time.time() - start_time
+                
+                # Verify solution
+                cube.apply_moves(solution)
+                is_solved = cube.is_solved()
+                
+                response_data = {
+                    'solution': solution,
+                    'move_count': len(solution.split()) if solution else 0,
+                    'solve_time': round(solve_time, 3),
+                    'verified': is_solved,
+                    'scramble': scramble,
+                    'algorithm': 'Layer-by-Layer',
+                    'description': 'Beginner method approach',
+                    'optimal': False
+                }
             
-            # Solve the cube
-            solver = CubeSolver()
-            start_time = time.time()
-            solution = solver.solve(cube)
-            solve_time = time.time() - start_time
+            # Get cube faces for visualization (reset to scrambled state)
+            visualization_cube = RubiksCube()
+            visualization_cube.apply_moves(scramble)
             
-            # Verify solution
-            cube.apply_moves(solution)
-            is_solved = cube.is_solved()
-            
-            # Get cube faces for visualization
             cube_visualization = {}
-            cube.apply_moves(data.get('scramble', ''))  # Reset to scrambled state
+            for face in visualization_cube.FACES:
+                cube_visualization[face] = [[visualization_cube.COLORS[cell] for cell in row] 
+                                          for row in visualization_cube.faces[face]]
             
-            for face in cube.FACES:
-                cube_visualization[face] = [[cube.COLORS[cell] for cell in row] 
-                                          for row in cube.faces[face]]
-            
-            return jsonify({
-                'solution': solution,
-                'move_count': len(solution.split()) if solution else 0,
-                'solve_time': round(solve_time, 3),
-                'verified': is_solved,
-                'scramble': scramble,
-                'cube_state': cube_visualization
-            })
+            response_data['cube_state'] = cube_visualization
+            return jsonify(response_data)
             
         except ValueError as e:
             return jsonify({'error': f'Invalid scramble: {str(e)}'}), 400

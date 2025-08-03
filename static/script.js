@@ -7,8 +7,11 @@ class CubeSolverApp {
     constructor() {
         this.isLoading = false;
         this.currentScramble = '';
+        this.cube3DRenderer = null;
+        this.currentView = '2d';
         this.initializeEventListeners();
         this.resetCubeVisualization();
+        this.setupViewToggle();
     }
 
     initializeEventListeners() {
@@ -39,6 +42,21 @@ class CubeSolverApp {
         });
     }
 
+    setupViewToggle() {
+        // View mode toggle listeners
+        document.getElementById('view2d').addEventListener('change', () => {
+            if (document.getElementById('view2d').checked) {
+                this.switchTo2D();
+            }
+        });
+
+        document.getElementById('view3d').addEventListener('change', () => {
+            if (document.getElementById('view3d').checked) {
+                this.switchTo3D();
+            }
+        });
+    }
+
     async solveCube() {
         if (this.isLoading) return;
 
@@ -54,12 +72,17 @@ class CubeSolverApp {
         this.hideSolution();
 
         try {
+            const algorithm = document.getElementById('algorithmSelect').value;
+            
             const response = await fetch('/solve', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ scramble: scramble })
+                body: JSON.stringify({ 
+                    scramble: scramble,
+                    algorithm: algorithm
+                })
             });
 
             const data = await response.json();
@@ -161,6 +184,23 @@ class CubeSolverApp {
         this.showSuccess('Cube reset to solved state');
     }
 
+    switchTo2D() {
+        this.currentView = '2d';
+        document.getElementById('cubeVisualization2D').style.display = 'block';
+        document.getElementById('cubeVisualization3D').style.display = 'none';
+    }
+
+    switchTo3D() {
+        this.currentView = '3d';
+        document.getElementById('cubeVisualization2D').style.display = 'none';
+        document.getElementById('cubeVisualization3D').style.display = 'block';
+        
+        // Initialize 3D renderer if not already done
+        if (!this.cube3DRenderer) {
+            this.cube3DRenderer = new Cube3DRenderer('cube3d-container');
+        }
+    }
+
     displaySolution(data) {
         const solutionCard = document.getElementById('solutionCard');
         const solutionResult = document.getElementById('solutionResult');
@@ -181,10 +221,12 @@ class CubeSolverApp {
                         <small class="text-muted">Verified</small>
                     </div>
                     <div class="col-md-3">
-                        <strong>Layer-by-Layer</strong><br>
+                        <strong>${data.algorithm || 'Unknown'}</strong><br>
                         <small class="text-muted">Algorithm</small>
                     </div>
                 </div>
+                ${data.description ? `<div class="text-center mt-2"><small class="text-info">${data.description}</small></div>` : ''}
+                ${data.optimal ? '<div class="text-center mt-1"><span class="badge bg-success">Optimal Solution</span></div>' : ''}
             </div>
         `;
 
@@ -227,21 +269,29 @@ class CubeSolverApp {
     }
 
     updateCubeVisualization(cubeState) {
+        // Update 2D visualization
         const faces = ['U', 'D', 'F', 'B', 'L', 'R'];
         
         faces.forEach(face => {
             const faceElement = document.getElementById(`face-${face}`);
-            const cells = faceElement.querySelectorAll('.cube-cell');
-            
-            let cellIndex = 0;
-            for (let row = 0; row < 3; row++) {
-                for (let col = 0; col < 3; col++) {
-                    const color = cubeState[face][row][col];
-                    cells[cellIndex].setAttribute('data-color', color);
-                    cellIndex++;
+            if (faceElement) {
+                const cells = faceElement.querySelectorAll('.cube-cell');
+                
+                let cellIndex = 0;
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 3; col++) {
+                        const color = cubeState[face][row][col];
+                        cells[cellIndex].setAttribute('data-color', color);
+                        cellIndex++;
+                    }
                 }
             }
         });
+
+        // Update 3D visualization if initialized
+        if (this.cube3DRenderer) {
+            this.cube3DRenderer.updateCubeState(cubeState);
+        }
     }
 
     resetCubeVisualization() {
@@ -254,14 +304,22 @@ class CubeSolverApp {
             'R': 'G'  // Right - Green
         };
 
+        // Reset 2D visualization
         Object.keys(faceColors).forEach(face => {
             const faceElement = document.getElementById(`face-${face}`);
-            const cells = faceElement.querySelectorAll('.cube-cell');
-            
-            cells.forEach(cell => {
-                cell.setAttribute('data-color', faceColors[face]);
-            });
+            if (faceElement) {
+                const cells = faceElement.querySelectorAll('.cube-cell');
+                
+                cells.forEach(cell => {
+                    cell.setAttribute('data-color', faceColors[face]);
+                });
+            }
         });
+
+        // Reset 3D visualization if initialized
+        if (this.cube3DRenderer) {
+            this.cube3DRenderer.resetToSolved();
+        }
     }
 
     setLoading(loading) {
