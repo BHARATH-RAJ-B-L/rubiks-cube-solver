@@ -11,7 +11,6 @@ except ImportError:
     print("Flask not available. Web interface disabled.")
 
 from cube import RubiksCube
-from solver import CubeSolver
 from solver_kociemba import KociembaSolver
 import json
 import time

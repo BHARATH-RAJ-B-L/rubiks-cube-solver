@@ -50,7 +50,9 @@ class CubeSolverApp {
 
     setupAnimationControls() {
         // Initialize 3D cube immediately
-        this.cube3DRenderer = new Cube3DRenderer('cube3d-container');
+        setTimeout(() => {
+            this.cube3DRenderer = new Cube3DRenderer('cube3d-container');
+        }, 100);
         
         // Animation control listeners
         document.getElementById('playAnimationBtn').addEventListener('click', () => {
@@ -194,7 +196,10 @@ class CubeSolverApp {
     }
 
     setupSolutionAnimation(solution) {
+        console.log('Setting up solution animation with:', solution);
+        
         if (!solution) {
+            console.log('No solution provided');
             this.disableAnimationControls();
             return;
         }
@@ -204,11 +209,19 @@ class CubeSolverApp {
         this.animationState.isPlaying = false;
         this.animationState.isPaused = false;
         
+        console.log('Parsed moves:', this.animationState.moves);
         this.enableAnimationControls();
     }
 
     playAnimation() {
-        if (this.animationState.moves.length === 0) return;
+        console.log('Play animation clicked');
+        console.log('Animation state:', this.animationState);
+        
+        if (this.animationState.moves.length === 0) {
+            console.log('No moves to animate');
+            this.showError('No solution to animate. Please solve a scramble first.');
+            return;
+        }
         
         this.animationState.isPlaying = true;
         this.animationState.isPaused = false;
@@ -217,6 +230,7 @@ class CubeSolverApp {
         document.getElementById('pauseAnimationBtn').disabled = false;
         document.getElementById('resetAnimationBtn').disabled = false;
         
+        console.log('Starting animation with moves:', this.animationState.moves);
         this.animateNextMove();
     }
 
@@ -244,21 +258,30 @@ class CubeSolverApp {
     }
 
     animateNextMove() {
+        console.log('Animate next move called, index:', this.animationState.currentMoveIndex);
+        
         if (!this.animationState.isPlaying || 
             this.animationState.currentMoveIndex >= this.animationState.moves.length) {
+            console.log('Animation finished or stopped');
             this.finishAnimation();
             return;
         }
         
         const currentMove = this.animationState.moves[this.animationState.currentMoveIndex];
+        console.log('Animating move:', currentMove);
         
         // Show current move
-        document.getElementById('currentMoveDisplay').style.display = 'block';
-        document.getElementById('currentMoveText').textContent = currentMove;
+        const moveDisplay = document.getElementById('currentMoveDisplay');
+        const moveText = document.getElementById('currentMoveText');
+        if (moveDisplay) moveDisplay.style.display = 'block';
+        if (moveText) moveText.textContent = currentMove;
         
         // Apply move to 3D cube
         if (this.cube3DRenderer) {
+            console.log('Applying move to 3D renderer');
             this.cube3DRenderer.animateMove(currentMove);
+        } else {
+            console.log('No 3D renderer available');
         }
         
         this.animationState.currentMoveIndex++;
@@ -268,7 +291,7 @@ class CubeSolverApp {
             if (this.animationState.isPlaying) {
                 this.animateNextMove();
             }
-        }, 800); // 800ms between moves
+        }, 1200); // 1.2 seconds between moves for better visibility
     }
 
     finishAnimation() {
@@ -283,15 +306,27 @@ class CubeSolverApp {
     }
 
     enableAnimationControls() {
-        document.getElementById('playAnimationBtn').disabled = false;
-        document.getElementById('pauseAnimationBtn').disabled = true;
-        document.getElementById('resetAnimationBtn').disabled = false;
+        const playBtn = document.getElementById('playAnimationBtn');
+        const pauseBtn = document.getElementById('pauseAnimationBtn');
+        const resetBtn = document.getElementById('resetAnimationBtn');
+        
+        if (playBtn) playBtn.disabled = false;
+        if (pauseBtn) pauseBtn.disabled = true;
+        if (resetBtn) resetBtn.disabled = false;
+        
+        console.log('Animation controls enabled');
     }
 
     disableAnimationControls() {
-        document.getElementById('playAnimationBtn').disabled = true;
-        document.getElementById('pauseAnimationBtn').disabled = true;
-        document.getElementById('resetAnimationBtn').disabled = true;
+        const playBtn = document.getElementById('playAnimationBtn');
+        const pauseBtn = document.getElementById('pauseAnimationBtn');
+        const resetBtn = document.getElementById('resetAnimationBtn');
+        
+        if (playBtn) playBtn.disabled = true;
+        if (pauseBtn) pauseBtn.disabled = true;
+        if (resetBtn) resetBtn.disabled = true;
+        
+        console.log('Animation controls disabled');
     }
 
     displaySolution(data) {
@@ -382,20 +417,31 @@ class CubeSolverApp {
         document.getElementById('currentMoveDisplay').style.display = 'none';
     }
 
-    resetCubeToScrambled() {
+    async resetCubeToScrambled() {
         if (this.currentScramble && this.cube3DRenderer) {
-            // Create a cube state with scramble applied
-            const tempCube = {
-                'U': [['W', 'W', 'W'], ['W', 'W', 'W'], ['W', 'W', 'W']],
-                'D': [['Y', 'Y', 'Y'], ['Y', 'Y', 'Y'], ['Y', 'Y', 'Y']],
-                'F': [['R', 'R', 'R'], ['R', 'R', 'R'], ['R', 'R', 'R']],
-                'B': [['O', 'O', 'O'], ['O', 'O', 'O'], ['O', 'O', 'O']],
-                'L': [['B', 'B', 'B'], ['B', 'B', 'B'], ['B', 'B', 'B']],
-                'R': [['G', 'G', 'G'], ['G', 'G', 'G'], ['G', 'G', 'G']]
-            };
-            
-            // Apply scramble simulation to update visualization
-            this.cube3DRenderer.updateCubeState(tempCube);
+            try {
+                // Get the scrambled cube state from server
+                const response = await fetch('/scramble', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        scramble: this.currentScramble
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.cube3DRenderer.updateCubeState(data.cube_state);
+                } else {
+                    // Fallback to solved state
+                    this.cube3DRenderer.resetToSolved();
+                }
+            } catch (error) {
+                console.error('Error resetting to scrambled state:', error);
+                this.cube3DRenderer.resetToSolved();
+            }
         }
     }
 
