@@ -8,10 +8,16 @@ class CubeSolverApp {
         this.isLoading = false;
         this.currentScramble = '';
         this.cube3DRenderer = null;
-        this.currentView = '2d';
+        this.currentSolution = '';
+        this.animationState = {
+            isPlaying: false,
+            isPaused: false,
+            currentMoveIndex: 0,
+            moves: []
+        };
         this.initializeEventListeners();
         this.resetCubeVisualization();
-        this.setupViewToggle();
+        this.setupAnimationControls();
     }
 
     initializeEventListeners() {
@@ -42,18 +48,21 @@ class CubeSolverApp {
         });
     }
 
-    setupViewToggle() {
-        // View mode toggle listeners
-        document.getElementById('view2d').addEventListener('change', () => {
-            if (document.getElementById('view2d').checked) {
-                this.switchTo2D();
-            }
+    setupAnimationControls() {
+        // Initialize 3D cube immediately
+        this.cube3DRenderer = new Cube3DRenderer('cube3d-container');
+        
+        // Animation control listeners
+        document.getElementById('playAnimationBtn').addEventListener('click', () => {
+            this.playAnimation();
         });
 
-        document.getElementById('view3d').addEventListener('change', () => {
-            if (document.getElementById('view3d').checked) {
-                this.switchTo3D();
-            }
+        document.getElementById('pauseAnimationBtn').addEventListener('click', () => {
+            this.pauseAnimation();
+        });
+
+        document.getElementById('resetAnimationBtn').addEventListener('click', () => {
+            this.resetAnimation();
         });
     }
 
@@ -72,8 +81,6 @@ class CubeSolverApp {
         this.hideSolution();
 
         try {
-            const algorithm = document.getElementById('algorithmSelect').value;
-            
             const response = await fetch('/solve', {
                 method: 'POST',
                 headers: {
@@ -81,7 +88,7 @@ class CubeSolverApp {
                 },
                 body: JSON.stringify({ 
                     scramble: scramble,
-                    algorithm: algorithm
+                    algorithm: 'kociemba'
                 })
             });
 
@@ -94,6 +101,8 @@ class CubeSolverApp {
             this.displaySolution(data);
             this.updateCubeVisualization(data.cube_state);
             this.currentScramble = scramble;
+            this.currentSolution = data.solution;
+            this.setupSolutionAnimation(data.solution);
 
             // Add success animation
             this.addSuccessAnimation();
@@ -184,21 +193,105 @@ class CubeSolverApp {
         this.showSuccess('Cube reset to solved state');
     }
 
-    switchTo2D() {
-        this.currentView = '2d';
-        document.getElementById('cubeVisualization2D').style.display = 'block';
-        document.getElementById('cubeVisualization3D').style.display = 'none';
+    setupSolutionAnimation(solution) {
+        if (!solution) {
+            this.disableAnimationControls();
+            return;
+        }
+        
+        this.animationState.moves = solution.split(' ').filter(move => move.trim());
+        this.animationState.currentMoveIndex = 0;
+        this.animationState.isPlaying = false;
+        this.animationState.isPaused = false;
+        
+        this.enableAnimationControls();
     }
 
-    switchTo3D() {
-        this.currentView = '3d';
-        document.getElementById('cubeVisualization2D').style.display = 'none';
-        document.getElementById('cubeVisualization3D').style.display = 'block';
+    playAnimation() {
+        if (this.animationState.moves.length === 0) return;
         
-        // Initialize 3D renderer if not already done
-        if (!this.cube3DRenderer) {
-            this.cube3DRenderer = new Cube3DRenderer('cube3d-container');
+        this.animationState.isPlaying = true;
+        this.animationState.isPaused = false;
+        
+        document.getElementById('playAnimationBtn').disabled = true;
+        document.getElementById('pauseAnimationBtn').disabled = false;
+        document.getElementById('resetAnimationBtn').disabled = false;
+        
+        this.animateNextMove();
+    }
+
+    pauseAnimation() {
+        this.animationState.isPlaying = false;
+        this.animationState.isPaused = true;
+        
+        document.getElementById('playAnimationBtn').disabled = false;
+        document.getElementById('pauseAnimationBtn').disabled = true;
+    }
+
+    resetAnimation() {
+        this.animationState.isPlaying = false;
+        this.animationState.isPaused = false;
+        this.animationState.currentMoveIndex = 0;
+        
+        document.getElementById('playAnimationBtn').disabled = false;
+        document.getElementById('pauseAnimationBtn').disabled = true;
+        document.getElementById('currentMoveDisplay').style.display = 'none';
+        
+        // Reset cube to scrambled state
+        if (this.currentScramble && this.cube3DRenderer) {
+            this.resetCubeToScrambled();
         }
+    }
+
+    animateNextMove() {
+        if (!this.animationState.isPlaying || 
+            this.animationState.currentMoveIndex >= this.animationState.moves.length) {
+            this.finishAnimation();
+            return;
+        }
+        
+        const currentMove = this.animationState.moves[this.animationState.currentMoveIndex];
+        
+        // Show current move
+        document.getElementById('currentMoveDisplay').style.display = 'block';
+        document.getElementById('currentMoveText').textContent = currentMove;
+        
+        // Apply move to 3D cube
+        if (this.cube3DRenderer) {
+            this.cube3DRenderer.animateMove(currentMove);
+        }
+        
+        this.animationState.currentMoveIndex++;
+        
+        // Schedule next move
+        setTimeout(() => {
+            if (this.animationState.isPlaying) {
+                this.animateNextMove();
+            }
+        }, 800); // 800ms between moves
+    }
+
+    finishAnimation() {
+        this.animationState.isPlaying = false;
+        this.animationState.isPaused = false;
+        
+        document.getElementById('playAnimationBtn').disabled = true;
+        document.getElementById('pauseAnimationBtn').disabled = true;
+        document.getElementById('currentMoveDisplay').style.display = 'none';
+        
+        this.showSuccess('Animation completed! Cube is solved.');
+    }
+
+    enableAnimationControls() {
+        document.getElementById('playAnimationBtn').disabled = false;
+        document.getElementById('pauseAnimationBtn').disabled = true;
+        document.getElementById('resetAnimationBtn').disabled = false;
+    }
+
+    disableAnimationControls() {
+        document.getElementById('playAnimationBtn').disabled = true;
+        document.getElementById('pauseAnimationBtn').disabled = true;
+        document.getElementById('resetAnimationBtn').disabled = true;
     }
 
     displaySolution(data) {
@@ -269,56 +362,40 @@ class CubeSolverApp {
     }
 
     updateCubeVisualization(cubeState) {
-        // Update 2D visualization
-        const faces = ['U', 'D', 'F', 'B', 'L', 'R'];
-        
-        faces.forEach(face => {
-            const faceElement = document.getElementById(`face-${face}`);
-            if (faceElement) {
-                const cells = faceElement.querySelectorAll('.cube-cell');
-                
-                let cellIndex = 0;
-                for (let row = 0; row < 3; row++) {
-                    for (let col = 0; col < 3; col++) {
-                        const color = cubeState[face][row][col];
-                        cells[cellIndex].setAttribute('data-color', color);
-                        cellIndex++;
-                    }
-                }
-            }
-        });
-
-        // Update 3D visualization if initialized
+        // Update 3D visualization
         if (this.cube3DRenderer) {
             this.cube3DRenderer.updateCubeState(cubeState);
         }
     }
 
     resetCubeVisualization() {
-        const faceColors = {
-            'U': 'W', // Up - White
-            'D': 'Y', // Down - Yellow  
-            'F': 'R', // Front - Red
-            'B': 'O', // Back - Orange
-            'L': 'B', // Left - Blue
-            'R': 'G'  // Right - Green
-        };
-
-        // Reset 2D visualization
-        Object.keys(faceColors).forEach(face => {
-            const faceElement = document.getElementById(`face-${face}`);
-            if (faceElement) {
-                const cells = faceElement.querySelectorAll('.cube-cell');
-                
-                cells.forEach(cell => {
-                    cell.setAttribute('data-color', faceColors[face]);
-                });
-            }
-        });
-
-        // Reset 3D visualization if initialized
+        // Reset 3D visualization
         if (this.cube3DRenderer) {
             this.cube3DRenderer.resetToSolved();
+        }
+        
+        // Reset animation state
+        this.animationState.currentMoveIndex = 0;
+        this.animationState.isPlaying = false;
+        this.animationState.isPaused = false;
+        this.disableAnimationControls();
+        document.getElementById('currentMoveDisplay').style.display = 'none';
+    }
+
+    resetCubeToScrambled() {
+        if (this.currentScramble && this.cube3DRenderer) {
+            // Create a cube state with scramble applied
+            const tempCube = {
+                'U': [['W', 'W', 'W'], ['W', 'W', 'W'], ['W', 'W', 'W']],
+                'D': [['Y', 'Y', 'Y'], ['Y', 'Y', 'Y'], ['Y', 'Y', 'Y']],
+                'F': [['R', 'R', 'R'], ['R', 'R', 'R'], ['R', 'R', 'R']],
+                'B': [['O', 'O', 'O'], ['O', 'O', 'O'], ['O', 'O', 'O']],
+                'L': [['B', 'B', 'B'], ['B', 'B', 'B'], ['B', 'B', 'B']],
+                'R': [['G', 'G', 'G'], ['G', 'G', 'G'], ['G', 'G', 'G']]
+            };
+            
+            // Apply scramble simulation to update visualization
+            this.cube3DRenderer.updateCubeState(tempCube);
         }
     }
 

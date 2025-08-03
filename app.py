@@ -39,48 +39,26 @@ if FLASK_AVAILABLE:
             cube = RubiksCube()
             cube.apply_moves(scramble)
             
-            # Choose solver based on algorithm
-            if algorithm == 'kociemba':
-                solver = KociembaSolver()
-                solution, stats = solver.solve(cube)
-                
-                if 'error' in stats:
-                    return jsonify({'error': stats['error']}), 400
-                
-                # Verify solution
-                is_solved = solver.verify_solution(cube, solution)
-                
-                response_data = {
-                    'solution': solution,
-                    'move_count': stats.get('moves', 0),
-                    'solve_time': stats.get('time', 0),
-                    'verified': is_solved,
-                    'scramble': scramble,
-                    'algorithm': stats.get('algorithm', 'Kociemba'),
-                    'description': stats.get('description', ''),
-                    'optimal': stats.get('optimal', True)
-                }
-            else:
-                # Fallback to layer-by-layer solver
-                solver = CubeSolver()
-                start_time = time.time()
-                solution = solver.solve(cube)
-                solve_time = time.time() - start_time
-                
-                # Verify solution
-                cube.apply_moves(solution)
-                is_solved = cube.is_solved()
-                
-                response_data = {
-                    'solution': solution,
-                    'move_count': len(solution.split()) if solution else 0,
-                    'solve_time': round(solve_time, 3),
-                    'verified': is_solved,
-                    'scramble': scramble,
-                    'algorithm': 'Layer-by-Layer',
-                    'description': 'Beginner method approach',
-                    'optimal': False
-                }
+            # Use Kociemba algorithm for solving
+            solver = KociembaSolver()
+            solution, stats = solver.solve(cube)
+            
+            if 'error' in stats:
+                return jsonify({'error': stats['error']}), 400
+            
+            # Verify solution
+            is_solved = solver.verify_solution(cube, solution)
+            
+            response_data = {
+                'solution': solution,
+                'move_count': stats.get('moves', 0),
+                'solve_time': stats.get('time', 0),
+                'verified': is_solved,
+                'scramble': scramble,
+                'algorithm': stats.get('algorithm', 'Kociemba'),
+                'description': stats.get('description', ''),
+                'optimal': stats.get('optimal', True)
+            }
             
             # Get cube faces for visualization (reset to scrambled state)
             visualization_cube = RubiksCube()
