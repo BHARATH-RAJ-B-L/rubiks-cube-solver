@@ -21,7 +21,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "uv pip install . && python main.py"
+args = "pip install . && python main.py"
 waitForPort = 5000
 
 [[ports]]
