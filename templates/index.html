@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubik's Cube Solver</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row bg-primary text-white py-3 mb-4">
+            <div class="col-12 text-center">
+                <h1 class="display-4 mb-0">
+                    <i class="fas fa-cube me-3"></i>
+                    Rubik's Cube Solver
+                </h1>
+                <p class="lead mb-0">Solving 3x3 Rubik's Cube from any scrambled state</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Left Panel - Controls -->
+            <div class="col-lg-4 mb-4">
+                <div class="card shadow">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Cube Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Scramble Input -->
+                        <div class="mb-3">
+                            <label for="scrambleInput" class="form-label">
+                                <strong>Enter Scramble Sequence:</strong>
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="scrambleInput" 
+                                       placeholder="e.g., R U R' F R F'" 
+                                       value="R U R' F R F'">
+                                <button class="btn btn-secondary" type="button" id="validateBtn">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Use standard notation: U, U', D, D', R, R', L, L', F, F', B, B'</div>
+                            <div id="validation-feedback" class="mt-2"></div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-success btn-lg" id="solveBtn">
+                                <i class="fas fa-magic me-2"></i>Solve Cube
+                            </button>
+                            <button type="button" class="btn btn-warning" id="scrambleBtn">
+                                <i class="fas fa-random me-2"></i>Generate Random Scramble
+                            </button>
+                            <button type="button" class="btn btn-info" id="resetBtn">
+                                <i class="fas fa-undo me-2"></i>Reset to Solved
+                            </button>
+                        </div>
+
+                        <!-- Move Notation Guide -->
+                        <div class="mt-4">
+                            <h6 class="text-muted">Move Notation:</h6>
+                            <div class="row text-sm notation-guide">
+                                <div class="col-6">
+                                    <div><strong>U</strong> - Up clockwise</div>
+                                    <div><strong>D</strong> - Down clockwise</div>
+                                    <div><strong>R</strong> - Right clockwise</div>
+                                </div>
+                                <div class="col-6">
+                                    <div><strong>U'</strong> - Up counter-clockwise</div>
+                                    <div><strong>D'</strong> - Down counter-clockwise</div>
+                                    <div><strong>R'</strong> - Right counter-clockwise</div>
+                                </div>
+                            </div>
+                            <div class="row text-sm notation-guide mt-1">
+                                <div class="col-6">
+                                    <div><strong>L</strong> - Left clockwise</div>
+                                    <div><strong>F</strong> - Front clockwise</div>
+                                    <div><strong>B</strong> - Back clockwise</div>
+                                </div>
+                                <div class="col-6">
+                                    <div><strong>L'</strong> - Left counter-clockwise</div>
+                                    <div><strong>F'</strong> - Front counter-clockwise</div>
+                                    <div><strong>B'</strong> - Back counter-clockwise</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Solution Results -->
+                <div class="card shadow mt-4" id="solutionCard" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Solution</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="solutionResult"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Cube Visualization -->
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="fas fa-eye me-2"></i>Cube Visualization</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="cubeVisualization">
+                            <div class="cube-container">
+                                <!-- Cube will be rendered here -->
+                                <div class="cube-net">
+                                    <!-- Up face -->
+                                    <div class="face up-face" id="face-U">
+                                        <div class="cube-row">
+                                            <div class="cube-cell" data-color="W"></div>
+                                            <div class="cube-cell" data-color="W"></div>
+                                            <div class="cube-cell" data-color="W"></div>
+                                        </div>
+                                        <div class="cube-row">
+                                            <div class="cube-cell" data-color="W"></div>
+                                            <div class="cube-cell" data-color="W"></div>
+                                            <div class="cube-cell" data-color="W"></div>
+                                        </div>
+                                        <div class="cube-row">
+                                            <div class="cube-cell" data-color="W"></div>
+                                            <div class="cube-cell" data-color="W"></div>
+                                            <div class="cube-cell" data-color="W"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Middle row: Left, Front, Right, Back -->
+                                    <div class="middle-row">
+                                        <!-- Left face -->
+                                        <div class="face left-face" id="face-L">
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="B"></div>
+                                                <div class="cube-cell" data-color="B"></div>
+                                                <div class="cube-cell" data-color="B"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="B"></div>
+                                                <div class="cube-cell" data-color="B"></div>
+                                                <div class="cube-cell" data-color="B"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="B"></div>
+                                                <div class="cube-cell" data-color="B"></div>
+                                                <div class="cube-cell" data-color="B"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Front face -->
+                                        <div class="face front-face" id="face-F">
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="R"></div>
+                                                <div class="cube-cell" data-color="R"></div>
+                                                <div class="cube-cell" data-color="R"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="R"></div>
+                                                <div class="cube-cell" data-color="R"></div>
+                                                <div class="cube-cell" data-color="R"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="R"></div>
+                                                <div class="cube-cell" data-color="R"></div>
+                                                <div class="cube-cell" data-color="R"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Right face -->
+                                        <div class="face right-face" id="face-R">
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="G"></div>
+                                                <div class="cube-cell" data-color="G"></div>
+                                                <div class="cube-cell" data-color="G"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="G"></div>
+                                                <div class="cube-cell" data-color="G"></div>
+                                                <div class="cube-cell" data-color="G"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="G"></div>
+                                                <div class="cube-cell" data-color="G"></div>
+                                                <div class="cube-cell" data-color="G"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Back face -->
+                                        <div class="face back-face" id="face-B">
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="O"></div>
+                                                <div class="cube-cell" data-color="O"></div>
+                                                <div class="cube-cell" data-color="O"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="O"></div>
+                                                <div class="cube-cell" data-color="O"></div>
+                                                <div class="cube-cell" data-color="O"></div>
+                                            </div>
+                                            <div class="cube-row">
+                                                <div class="cube-cell" data-color="O"></div>
+                                                <div class="cube-cell" data-color="O"></div>
+                                                <div class="cube-cell" data-color="O"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Down face -->
+                                    <div class="face down-face" id="face-D">
+                                        <div class="cube-row">
+                                            <div class="cube-cell" data-color="Y"></div>
+                                            <div class="cube-cell" data-color="Y"></div>
+                                            <div class="cube-cell" data-color="Y"></div>
+                                        </div>
+                                        <div class="cube-row">
+                                            <div class="cube-cell" data-color="Y"></div>
+                                            <div class="cube-cell" data-color="Y"></div>
+                                            <div class="cube-cell" data-color="Y"></div>
+                                        </div>
+                                        <div class="cube-row">
+                                            <div class="cube-cell" data-color="Y"></div>
+                                            <div class="cube-cell" data-color="Y"></div>
+                                            <div class="cube-cell" data-color="Y"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Loading Indicator -->
+                        <div id="loadingIndicator" class="text-center mt-3" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div class="mt-2">Solving cube...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Examples Section -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Example Scrambles</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3">Try these example scrambles to see the solver in action:</p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="example-scramble mb-2">
+                                    <button class="btn btn-outline-primary btn-sm me-2 load-example" 
+                                            data-scramble="R U R' F R F'">Load</button>
+                                    <code>R U R' F R F'</code> - Simple scramble (6 moves)
+                                </div>
+                                <div class="example-scramble mb-2">
+                                    <button class="btn btn-outline-primary btn-sm me-2 load-example" 
+                                            data-scramble="R U R' U R U2 R'">Load</button>
+                                    <code>R U R' U R U2 R'</code> - Classic Sune pattern (7 moves)
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="example-scramble mb-2">
+                                    <button class="btn btn-outline-primary btn-sm me-2 load-example" 
+                                            data-scramble="F R U' R' U' R U R' F'">Load</button>
+                                    <code>F R U' R' U' R U R' F'</code> - T-Perm pattern (9 moves)
+                                </div>
+                                <div class="example-scramble mb-2">
+                                    <button class="btn btn-outline-primary btn-sm me-2 load-example" 
+                                            data-scramble="R U R' U' R' F R2 U' R' U' R U R' F'">Load</button>
+                                    <code>R U R' U' R' F R2 U' R' U' R U R' F'</code> - Complex scramble (14 moves)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="row mt-4">
+            <div class="col-12 text-center text-muted">
+                <hr>
+                <p class="mb-2">
+                    <strong>Rubik's Cube Solver</strong> - Algorithm Implementation for 3x3 Cube
+                </p>
+                <p class="small">
+                    Uses layer-by-layer solving approach with optimized algorithms for efficient cube solving.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
